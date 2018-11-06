@@ -2,19 +2,21 @@ package overmind_utilities;
 import overmind_server.*;
 
 public class ServerInterfacer extends Thread {
-	boolean shutdown = false;
+	public boolean shutdown = false;
 	String[] args;
 	
 	public ServerInterfacer(String[] args) {
 		this.args = args;
 	}
 	
+	public static ApplicationInterface.RegisteredApp thisApplication = null;
+	
 	@Override
 	public void run() {
 		super.run();
 		MainFrame.main(args); // Start the Overmind server
 		
-		ApplicationInterface.RegisteredApp thisApplication = 
+		thisApplication = 
 				ApplicationInterface.registerApplication(AppInfo.maxRemovableNodes, AppInfo.name);
 		
 		while(!shutdown) {		
