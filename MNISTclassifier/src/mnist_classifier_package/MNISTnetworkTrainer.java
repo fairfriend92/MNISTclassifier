@@ -252,49 +252,6 @@ public class MNISTnetworkTrainer {
 		}
 		
 	}
-		
-	/**
-	 * The method checks if the chosen nodes satisfy the necessary conditions
-	 * to build a network such as the specific one needed by this app, MuonDetectorTeacher. 
-	 */
-	
-	boolean checkTopology() {
-		
-		for (Node excNode : NodesManager.excNodes) {
-			
-			/*
-			 * Check if the node has lateral connections. If it doesn't, and it 
-			 * cannot support them, return with an error. 
-			 */
-						
-			if (!excNode.hasLateralConnections()) 
-				if (!excNode.changeLateralConnectionsOption()) {
-					MNISTmain.updateLogPanel("Node " + excNode.terminal.ip + " can't support lateral conn.", Color.RED);
-					return false;
-				}
-		
-			
-			/*
-			 * Check if the terminal has enough dendrites to receive the sample pic 
-			 * to be analyzed. 
-			 */
-			
-			if (excNode.terminal.numOfDendrites < MNISTconst.MAX_PIC_PIXELS) {
-				MNISTmain.updateLogPanel("Node " + excNode.terminal.ip + " doesn't have enough dendrites for pic.", Color.RED);
-				return false;
-			}
-			
-			/*
-			 * If the node satisfies all the requirements, make it 
-			 * unavailable to the Overmind server. 
-			 */
-			
-			VirtualLayerManager.availableNodes.remove(excNode);
-		}	
-		
-		
-		return true;
-	}	
 			
 	boolean setSynapticWeights() {	
 		final boolean STREAM_INTERRUPTED = false;	
@@ -334,7 +291,7 @@ public class MNISTnetworkTrainer {
 			byte[] updateWeightsFlags = new byte[sparseArrayLength];		
 			
 			// Size of each of the populations (assuming they are equal in size)
-			int popSize = excNode.terminal.numOfNeurons;
+			int popSize = excNode.terminal.numOfNeurons / excNode.terminal.populations.size();
 						
 			for (int neuronIndex = 0; neuronIndex < excNode.terminal.numOfNeurons; neuronIndex++) {
 				int weightOffset = 0; // Keep track of how many weights have been updated for a given connection.
@@ -369,15 +326,20 @@ public class MNISTnetworkTrainer {
 					for (int weightIndex = 0; weightIndex < presynapticTerminal.numOfNeurons; weightIndex++) {												
 						float random = randomNumber.nextFloat();
 						
-						if (lateralConn & weightIndex != neuronIndex) { 
+						// Flag that is set if the index of the presynaptic neuron is such that the neuron
+						// could belong to the same population of the postsynaptic one
+						boolean samePop = weightIndex >= popIndex * pop.numOfNeurons & 
+								weightIndex < pop.numOfNeurons * (1 + popIndex);
+						
+						if (lateralConn & !samePop) { 
 							weightSign = -1; 
-							probOfConnection = 1; // Inhibition from the competitive neurons should always be on
+							probOfConnection = 1.5f * 1 / MNISTconst.NUM_OF_LABELS; // 0.6 ?
 						}
 						else { 
 							weightSign = 1; 
-							probOfConnection = 1;
+							probOfConnection = 1; 
 							if (presynTerminalIsApp)
-								probOfConnection = 1;
+								probOfConnection = 1; // TODO: Think about this parameter
 						}
 						
 						float weight = random < probOfConnection ? random : 0.0f;
@@ -389,7 +351,7 @@ public class MNISTnetworkTrainer {
 								(byte)(sparseWeightsFloat[neuronIndex * activeSynPerNeuron + weightIndex + weightOffset] / UtilConst.MIN_WEIGHT);
 	        			
 						updateWeightsFlags[neuronIndex * activeSynPerNeuron + weightIndex + weightOffset] = 
-	        					weightSign == -1 ? DONT_UPDATE_WEIGHT : UPDATE_WEIGHT;
+	        					weightSign == -1 | lateralConn ? DONT_UPDATE_WEIGHT : UPDATE_WEIGHT;
 					}
 					
 					weightOffset += presynapticTerminal.numOfNeurons;
@@ -499,9 +461,9 @@ public class MNISTnetworkTrainer {
     			new GrayscaleCandidate(dummyInput, MNISTconst.UNDETERMINED);
     	
     	float[][] images = isTrainingSession ? MNISTmain.testSetImages : MNISTmain.trainingSetImages;
-    	int[] labels = isTrainingSession ? MNISTmain.testSetLabels : MNISTmain.trainingSetLabels;
+    	int[] labels = isTrainingSession ? MNISTmain.testSetLabels : MNISTmain.trainingSetLabels;    	   	
     	
-    	for (int i = 0; i < 100; i++) {
+    	for (int i = 0; i < images.length; i++) {
         	int allowedIterations = MNISTconst.MIN_ITERATIONS;
     		boolean sampleAnalysisFinished = false;  
     		
@@ -625,8 +587,13 @@ public class MNISTnetworkTrainer {
     					}
     				}
     				
-					// The probability with which the guess has been made. 
-    				meanProbabilities[highestRateNodeNumber] += highestRateVectorLength / totalLength;
+					// The probability with which the guess has been made.     				
+    				//meanProbabilities[highestRateNodeNumber] += highestRateVectorLength / totalLength;
+    				
+    				double averageLength = (totalLength - highestRateVectorLength) / (MNISTconst.NUM_OF_LABELS - 1);
+    				
+    				meanProbabilities[highestRateNodeNumber] += 1 - averageLength / highestRateVectorLength;
+    				
     				meanSamples[highestRateNodeNumber]++; // How many times the same class has been associated with the input. 
 					
     				/*
@@ -647,11 +614,8 @@ public class MNISTnetworkTrainer {
     					}
     					
     					maxProbability /= meanSamples[tentativeClass];
-    					
-    					// 7 / 5  means that before making a guess we should be 70 % sure of the guess
-    	    			float threshold = 7 / (MNISTconst.NUM_OF_LABELS * 5);		
-    					
-    					if (maxProbability > threshold | allowedIterations >= MNISTconst.MAX_ITERATIONS) {
+    					    					
+    					if (maxProbability > 0.6f | allowedIterations >= MNISTconst.MAX_ITERATIONS) {
     						sampleClassified = true;
 	    					finalProbability = maxProbability;
 	    					guessedClass = tentativeClass;

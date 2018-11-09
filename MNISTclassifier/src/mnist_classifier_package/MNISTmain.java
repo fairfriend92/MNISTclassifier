@@ -27,7 +27,9 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.ListSelectionModel;
+import javax.swing.SpinnerNumberModel;
 
 import com.example.overmind.Terminal;
 
@@ -58,6 +60,7 @@ public class MNISTmain {
 	private static JButton analyzeSamples = new JButton("Analyze");
 	private static JButton storeWeights = new JButton("Store weights");
 	private static JButton loadWeights = new JButton("Load weights");
+	private static JButton loadData = new JButton("Load MNIST data");
 	
 	/* Miscellanea */
 	
@@ -67,6 +70,7 @@ public class MNISTmain {
 	static boolean networkWasTrained = false;
 	static Terminal thisApp = new Terminal();
     static ArrayList<Terminal> inputTerminals; // The terminals objects that represent the input layer
+    static Integer numOfTrainingImgs = null, numOfTestImgs = null;
 
 	/* Threading objects */
 	
@@ -84,11 +88,13 @@ public class MNISTmain {
 		ServerInterfacer serverInterfacer = new ServerInterfacer(args);
 		serverInterfacer.start();
 		
-		if (loadDatasets() == ERROR) {
-			System.out.println("Error! Problem occurred while loading a dataset");
-			return;
-		}				
-		
+		// Gives time to the main thread to retrieve the ip of the server		
+		try {
+			Thread.sleep(10000);
+		} catch (InterruptedException e1) {
+			e1.printStackTrace();
+		}
+						
 		thisApp.numOfNeurons = (short) MNISTconst.MAX_PIC_PIXELS;
 		thisApp.numOfSynapses = Short.MAX_VALUE;
 		thisApp.numOfDendrites = 0;
@@ -126,6 +132,14 @@ public class MNISTmain {
 		JPanel excNodesPanel = new JPanel();
 		//JPanel inhNodesPanel = new JPanel();
 		JPanel upperPanelsContainer = new JPanel();
+		JPanel dataPanel = new JPanel();
+		
+		// The maximum number of images is hardcoded as it is known beforehand for the MNIST dataset
+		SpinnerNumberModel trainingSpinnerModel = new SpinnerNumberModel(1, 1, 60000, 1);
+		SpinnerNumberModel testSpinnerModel = new SpinnerNumberModel(1, 1, 10000, 1);
+
+		JSpinner trainingImagesSpinner = new JSpinner(trainingSpinnerModel);
+		JSpinner testImagesSpinner = new JSpinner(testSpinnerModel);
 		
 		JFrame mainFrame = new JFrame();	
 				
@@ -150,6 +164,18 @@ public class MNISTmain {
 		commandsPanel.add(analyzeSamples);
 		commandsPanel.add(storeWeights);
 		commandsPanel.add(loadWeights);
+		
+		/* Data panel */
+		
+		dataPanel.setLayout(new GridLayout(5, 1));
+		dataPanel.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createTitledBorder("Data options"), 
+				BorderFactory.createEmptyBorder(5,5,5,5)));
+		dataPanel.add(new JLabel("# training imgs"));
+		dataPanel.add(trainingImagesSpinner);
+		dataPanel.add(new JLabel("# test imgs"));
+		dataPanel.add(testImagesSpinner);
+		dataPanel.add(loadData);
 		
 		/* Log panel */
 		
@@ -202,6 +228,7 @@ public class MNISTmain {
 		upperPanelsContainer.setLayout(new BoxLayout(upperPanelsContainer, BoxLayout.X_AXIS));
 		upperPanelsContainer.add(commandsPanel);
 		upperPanelsContainer.add(excNodesPanel);
+		upperPanelsContainer.add(dataPanel);
 		//upperPanelsContainer.add(inhNodesPanel);
 		
 		/* Main panel */
@@ -213,6 +240,23 @@ public class MNISTmain {
 		/*
 		 * Define buttons actions. 
 		 */
+		
+		loadData.addActionListener(new ActionListener() {
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				numOfTrainingImgs = (Integer) trainingImagesSpinner.getValue();
+				numOfTestImgs = (Integer) testImagesSpinner.getValue();
+							
+				if (loadDatasets(numOfTrainingImgs, numOfTestImgs) == ERROR) {
+					System.out.println("Error! Problem occurred while loading a dataset");
+					updateLogPanel("Error loading data", Color.RED);
+				} else {
+					updateLogPanel("Images loaded", Color.BLACK);
+				}
+			} 
+			
+		});
 		
 		createTerminals.addActionListener(new ActionListener() {
 
@@ -614,6 +658,7 @@ public class MNISTmain {
 		analyzeSamples.setEnabled(state);
 		loadWeights.setEnabled(state);
 		storeWeights.setEnabled(state);
+		createTerminals.setEnabled(state);
 		
 		mainPanel.repaint();
 		mainPanel.revalidate();
@@ -632,7 +677,7 @@ public class MNISTmain {
 		logPanel.revalidate();
 	}
 	
-	private static int loadDatasets() {
+	private static int loadDatasets(Integer numOfTrainingImgs, Integer numOfTestImgs) {
 		// Get the files the MNIST dataset pictures and labels
 		String absolutePath = new File("").getAbsolutePath();
 		String mnistPath = absolutePath.concat("/resources/MNIST");
@@ -648,7 +693,7 @@ public class MNISTmain {
 			switch (fileName) {
 			
 			case "train-images-idx3-ubyte": trainingSetImagesFile = mnistFile;
-			trainingSetImages = readImageFile(trainingSetImagesFile);
+			trainingSetImages = readImageFile(trainingSetImagesFile, numOfTrainingImgs);
 			if (trainingSetImages == null) {
 				System.out.println("Error! readImageFile failed for trainingSetImages");
 				return ERROR;
@@ -656,7 +701,7 @@ public class MNISTmain {
 			break;
 			
 			case "train-labels-idx1-ubyte": trainingSetLabelsFile = mnistFile;
-			trainingSetLabels = readLabelFile(trainingSetLabelsFile);
+			trainingSetLabels = readLabelFile(trainingSetLabelsFile, numOfTrainingImgs);
 			if (trainingSetLabels == null) {
 				System.out.println("Error! readLabelFile failed for trainingSetLabels");
 				return ERROR; 
@@ -664,7 +709,7 @@ public class MNISTmain {
 			break;
 			
 			case "test-images-idx3-ubyte": testSetImagesFile = mnistFile;
-			testSetImages = readImageFile(testSetImagesFile);
+			testSetImages = readImageFile(testSetImagesFile, numOfTestImgs);
 			if (testSetImages == null) {
 				System.out.println("Error! readImageFile failed for testSetImages");
 				return ERROR;
@@ -672,7 +717,7 @@ public class MNISTmain {
 			break;
 			
 			case "test-labels-idx1-ubyte": testSetLabelsFile = mnistFile;
-			testSetLabels = readLabelFile(testSetLabelsFile);
+			testSetLabels = readLabelFile(testSetLabelsFile, numOfTestImgs);
 			if (testSetLabels == null) {
 				System.out.println("Error! readLabelFile failed for testSetLabels");
 				return ERROR;
@@ -686,7 +731,7 @@ public class MNISTmain {
 		return SUCCESS;
 	}
 	
-	private static float[][] readImageFile(File imageFile) {
+	private static float[][] readImageFile(File imageFile, Integer numOfImgs) {
 		float[][] result = null;
 		
 		try {
@@ -703,7 +748,8 @@ public class MNISTmain {
 			}
 			
 			fileInputStream.read(buffer);
-			int numOfImages = new BigInteger(buffer).intValue();	
+			//int numOfImages = new BigInteger(buffer).intValue();	
+			int numOfImages = numOfImgs.intValue();
 			
 			fileInputStream.read(buffer);
 			int numOfRows = new BigInteger(buffer).intValue();
@@ -735,7 +781,7 @@ public class MNISTmain {
 		return result;
 	}
 	
-	private static int[] readLabelFile(File labelFile) {
+	private static int[] readLabelFile(File labelFile, Integer numOfLabels) {
 		int[] result = null;
 		
 		try {
@@ -752,7 +798,8 @@ public class MNISTmain {
 			}
 			
 			fileInputStream.read(buffer);
-			int numOfItems = new BigInteger(buffer).intValue();	
+			//int numOfItems = new BigInteger(buffer).intValue();	
+			int numOfItems = numOfLabels.intValue();
 			
 			System.out.println(labelFile.getName() + " " + numOfItems);
 									

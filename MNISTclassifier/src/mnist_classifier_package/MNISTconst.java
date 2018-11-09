@@ -7,8 +7,8 @@ public class MNISTconst {
 			SIX = 6, SEVEN = 7, EIGHT = 8, NINE = 9;	
 	    
     /* Application constants */
-    static final int DELTA_TIME = 30; 
-    static final int STIMULATION_LENGTH_SIM_TIME = 100; // Length in simulation time of the stimulation period. 
+    static final int DELTA_TIME = 60; 
+    static final int STIMULATION_LENGTH_SIM_TIME = 50; // Length in simulation time of the stimulation period. 
     static final int PAUSE_LENGTH_SIM_TIME = 0;
     static final float DELTA_TIME_SIM = 0.5f;
     static final float STIMULATION_LENGTH = 
