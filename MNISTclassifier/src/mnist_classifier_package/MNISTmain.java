@@ -1,5 +1,4 @@
 package mnist_classifier_package;
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.GridLayout;
@@ -22,6 +21,7 @@ import java.util.concurrent.Future;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -38,23 +38,23 @@ import overmind_utilities.*;
 
 public class MNISTmain {
 	
-	/* Constants */
+	/* Constants. */
 	
 	private final static int SUCCESS = 1, ERROR = 0, 
-			IMG_FILE_MN = 2051, // Image file magic number
-			LBL_FILE_MN = 2049; // Label file magic number
+			IMG_FILE_MN = 2051, // Image file magic number.
+			LBL_FILE_MN = 2049; // Label file magic number.
 
-	/* Panels */
+	/* Panels and frames. */
 	
 	private static JPanel logPanel = new JPanel();
+	private static JFrame pictureFrame = new JFrame();
+	static PicturePanel picturePanel;
 	static JPanel mainPanel = new JPanel();
 	
-	/* Buttons */
+	/* Buttons. */
 	
 	private static JButton addNodeToExc = new JButton("Add");
-	//private static JButton addNodeToInh = new JButton("Add");
 	private static JButton removeNodeFromExc = new JButton("Remove");
-	//private static JButton removeNodeFromInh = new JButton("Remove");
 	private static JButton createTerminals = new JButton("Create terminals");
 	private static JButton trainNetwork = new JButton("Train");
 	private static JButton analyzeSamples = new JButton("Analyze");
@@ -62,22 +62,24 @@ public class MNISTmain {
 	private static JButton loadWeights = new JButton("Load weights");
 	private static JButton loadData = new JButton("Load MNIST data");
 	
-	/* Miscellanea */
+	/* Miscellanea. */
 	
-	static float[][] trainingSetImages, testSetImages;
-	static int[] trainingSetLabels, testSetLabels;	
+	static ArrayList<float[]> trainingSetImages, testSetImages;
+	static ArrayList<Integer> trainingSetLabels, testSetLabels;	
 	static boolean isTraining = false; // Flag that tells if the train button has been pressed and if the network is being trained. 
 	static boolean networkWasTrained = false;
 	static Terminal thisApp = new Terminal();
-    static ArrayList<Terminal> inputTerminals; // The terminals objects that represent the input layer
+    static ArrayList<Terminal> inputTerminals; // The terminals objects that represent the input layer.
     static Integer numOfTrainingImgs = null, numOfTestImgs = null;
 
-	/* Threading objects */
+	/* Threading objects. */
 	
 	private static Thread networkTrainerThread;
 	private static Thread analyzerThread;
 	
-	/* Custom classes */
+	static Integer rareDigit = null;
+	
+	/* Custom classes. */
 	
 	private static MNISTnetworkTrainer networkTrainer = new MNISTnetworkTrainer();
 	
@@ -88,25 +90,18 @@ public class MNISTmain {
 		ServerInterfacer serverInterfacer = new ServerInterfacer(args);
 		serverInterfacer.start();
 		
-		// Gives time to the main thread to retrieve the ip of the server		
+		// Gives time to the main thread to retrieve the IP of the server.	
 		try {
 			Thread.sleep(10000);
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 		}
-						
-		thisApp.numOfNeurons = (short) MNISTconst.MAX_PIC_PIXELS;
-		thisApp.numOfSynapses = Short.MAX_VALUE;
-		thisApp.numOfDendrites = 0;
-		thisApp.ip = Constants.USE_LOCAL_CONNECTION ? VirtualLayerManager.localIP : VirtualLayerManager.serverIP;
-		thisApp.serverIP = thisApp.ip;
-		thisApp.natPort = MNISTconst.APP_UDP_PORT;
-		thisApp.id = thisApp.customHashCode();
 		
-		displayMainFrame();
+		displayFrames();
 		
 		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-	        public void run() {	        	
+	        public void run() {	        
+	        	
 	        	serverInterfacer.shutdown = true;
 	        	MNISTnetworkTrainer.shutdown = true;
 	        		        	
@@ -127,33 +122,33 @@ public class MNISTmain {
 	    }, "Shutdown-thread"));
 	}
 	
-	private static void displayMainFrame() {
+	private static void displayFrames() {
 		JPanel commandsPanel = new JPanel();
 		JPanel excNodesPanel = new JPanel();
-		//JPanel inhNodesPanel = new JPanel();
 		JPanel upperPanelsContainer = new JPanel();
 		JPanel dataPanel = new JPanel();
+		JPanel rareEventsPanel = new JPanel();
 		
-		// The maximum number of images is hardcoded as it is known beforehand for the MNIST dataset
+		JCheckBox rareEventsCheckBox = new JCheckBox("Rare events", false);
+		
+		// The maximum number of images is hard-coded as it is known beforehand for the MNIST dataset.
 		SpinnerNumberModel trainingSpinnerModel = new SpinnerNumberModel(1, 1, 60000, 1);
 		SpinnerNumberModel testSpinnerModel = new SpinnerNumberModel(1, 1, 10000, 1);
+		SpinnerNumberModel rareEventsDigitModel = new SpinnerNumberModel(0, 0, 9, 1);
 
 		JSpinner trainingImagesSpinner = new JSpinner(trainingSpinnerModel);
 		JSpinner testImagesSpinner = new JSpinner(testSpinnerModel);
+		JSpinner rareEventsDigitSpinner = new JSpinner(rareEventsDigitModel);
+		rareEventsDigitSpinner.setEnabled(false);
 		
-		JFrame mainFrame = new JFrame();	
+		JFrame mainFrame = new JFrame();
 				
-		JList<String> excNodesList = new JList<>();
-		//JList<String> inhNodesList = new JList<>();
-		
+		JList<String> excNodesList = new JList<>();		
 		JScrollPane excNodesScrollPane = new JScrollPane();
-		//JScrollPane inhNodesScrollPane = new JScrollPane();		
 		
-		/*
-		 * Build the individual panels.
-		 */
+		/* Build the panels. */
 		
-		/* Commands panel */
+		/* Commands panel. */
 		
 		commandsPanel.setLayout(new GridLayout(5, 1));
 		commandsPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -165,7 +160,7 @@ public class MNISTmain {
 		commandsPanel.add(storeWeights);
 		commandsPanel.add(loadWeights);
 		
-		/* Data panel */
+		/* Data panel. */
 		
 		dataPanel.setLayout(new GridLayout(5, 1));
 		dataPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -177,11 +172,11 @@ public class MNISTmain {
 		dataPanel.add(testImagesSpinner);
 		dataPanel.add(loadData);
 		
-		/* Log panel */
+		/* Log panel. */
 		
 		logPanel.add(new JLabel("Log info are shown here."));
 		
-		/* Excitatory nodes panel */
+		/* Excitatory nodes panel. */
 		
 		excNodesPanel.setLayout(new BoxLayout(excNodesPanel, BoxLayout.Y_AXIS));
 		excNodesPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -201,45 +196,44 @@ public class MNISTmain {
 		excNodesPanel.add(removeNodeFromExc);
 		excNodesPanel.add(excNodesScrollPane);
 		
-		/* Inhibitory nodes panel */
+		/* Rare events panel */
 		
-		/*
-		inhNodesPanel.setLayout(new BoxLayout(inhNodesPanel, BoxLayout.Y_AXIS));
-		inhNodesPanel.setBorder(BorderFactory.createCompoundBorder(
-				BorderFactory.createTitledBorder("Inh. nodes"),
-				BorderFactory.createEmptyBorder(5,5,5,5)));
+		rareEventsPanel.setLayout(new GridLayout(5, 1));
+		rareEventsPanel.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createTitledBorder("Rare events"),
+				BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 		
-		inhNodesList.setVisibleRowCount(2);
+		rareEventsCheckBox.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				JCheckBox jCheckBox = (JCheckBox) e.getSource();
+				if (jCheckBox.isSelected()) {
+					rareEventsDigitSpinner.setEnabled(true);
+				} else {
+					rareEventsDigitSpinner.setEnabled(false);
+				}
+			}
+		});
 		
-		inhNodesScrollPane.setViewportView(inhNodesList);
-		inhNodesScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-		NodesManager.inhNodesListModel.addElement("No inhibitory node");
-		inhNodesList.setModel(NodesManager.inhNodesListModel);
-		inhNodesList.setSelectionMode(ListSelectionModel.SINGLE_INTERVAL_SELECTION);
-		inhNodesList.setLayoutOrientation(JList.VERTICAL);
+		rareEventsPanel.add(rareEventsCheckBox);
+		rareEventsPanel.add(new JLabel("Rare digit"));
+		rareEventsPanel.add(rareEventsDigitSpinner);
 		
-		inhNodesPanel.add(addNodeToInh);
-		inhNodesPanel.add(removeNodeFromInh);
-		inhNodesPanel.add(inhNodesScrollPane, BorderLayout.CENTER);
-		*/
-		
-		/* Upper panels container */
+		/* Upper panels container. */
 		
 		upperPanelsContainer.setLayout(new BoxLayout(upperPanelsContainer, BoxLayout.X_AXIS));
 		upperPanelsContainer.add(commandsPanel);
 		upperPanelsContainer.add(excNodesPanel);
 		upperPanelsContainer.add(dataPanel);
-		//upperPanelsContainer.add(inhNodesPanel);
+		upperPanelsContainer.add(rareEventsPanel);
 		
-		/* Main panel */
+		/* Main panel. */
 				
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 		mainPanel.add(upperPanelsContainer);
 		mainPanel.add(logPanel);
 		
-		/*
-		 * Define buttons actions. 
-		 */
+		/* Define buttons actions. */
 		
 		loadData.addActionListener(new ActionListener() {
 
@@ -248,6 +242,8 @@ public class MNISTmain {
 				numOfTrainingImgs = (Integer) trainingImagesSpinner.getValue();
 				numOfTestImgs = (Integer) testImagesSpinner.getValue();
 							
+				updateLogPanel("Loading images...", Color.BLACK);
+				
 				if (loadDatasets(numOfTrainingImgs, numOfTestImgs) == ERROR) {
 					System.out.println("Error! Problem occurred while loading a dataset");
 					updateLogPanel("Error loading data", Color.RED);
@@ -265,12 +261,28 @@ public class MNISTmain {
 				if (NodesManager.excNodes.size() == 0) {
 					updateLogPanel("Select at least one exc node", Color.RED);
 				} else {
+					thisApp.numOfNeurons = (short) MNISTconst.MAX_PIC_PIXELS;
+					thisApp.numOfSynapses = Short.MAX_VALUE;
+					thisApp.numOfDendrites = 0;
+					thisApp.ip = Constants.USE_LOCAL_CONNECTION ? VirtualLayerManager.localIP : VirtualLayerManager.serverIP;
+					thisApp.serverIP = thisApp.ip;
+					thisApp.natPort = MNISTconst.APP_UDP_PORT;
+					thisApp.id = thisApp.customHashCode();
+					
 					inputTerminals = NetworkStimulator.createInputTerminals(MNISTconst.NUM_OF_LABELS, MNISTconst.MAX_PIC_PIXELS);	
 					ArrayList<Node> nodesToUpdate = new ArrayList<Node>();
 					for (Node node : NodesManager.excNodes) {
 						for (Terminal terminal : inputTerminals) {
 							node.terminal.presynapticTerminals.add(terminal);
 						}
+						
+						// TODO: This solution is not good. The problem is caused by the lack of difference
+						// between the synapses and dendrites of the terminal and those of the population. 
+						node.terminal.numOfDendrites -= MNISTconst.MAX_PIC_PIXELS;
+						
+						// Connect the excNode to the application. 
+						node.terminal.postsynapticTerminals.add(MNISTmain.thisApp);
+						node.terminal.numOfSynapses -= node.terminal.numOfNeurons;
 						
 						// Ordering the presynaptic terminals is important for the mapping between known ports and the information
 						// included in the headers of the UDP packets that happens on the client side
@@ -279,10 +291,7 @@ public class MNISTmain {
 						nodesToUpdate.add(node);
 					}		   
 					
-					updateLogPanel("Terminals created", Color.BLACK);
-
-					//Node[] nodes = new Node[nodesToUpdate.size()]		   ;     
-					//VirtualLayerManager.connectNodes(nodesToUpdate.toArray(nodes));		        	       
+					updateLogPanel("Terminals created", Color.BLACK);	        	       
 				}
 			}				
 		});
@@ -294,7 +303,7 @@ public class MNISTmain {
 					if (NodesManager.excNodes.isEmpty()) { 
 						updateLogPanel("Select an input and output layer first", Color.RED);
 					} else {
-						changePanelState(false); // During the learning phase the user shouldn't change the network topology.	
+						changeMainPanelState(false); // During the learning phase the user shouldn't change the network topology.	
 						
 						isTraining = true;
 						
@@ -304,28 +313,37 @@ public class MNISTmain {
 								super.run();
 								boolean operationSuccessful = true; 
 										
-								if (operationSuccessful)
+								if (rareEventsCheckBox.isSelected()) {
+									rareDigit = (Integer) rareEventsDigitSpinner.getValue();
+								} else {
+									rareDigit = null;
+								}
+								
+								if (operationSuccessful & !MNISTnetworkTrainer.shutdown)
 									operationSuccessful &= networkTrainer.setSynapticWeights(); 
+								
 								if (operationSuccessful) {
 									trainNetwork.setEnabled(true);
 									trainNetwork.setText("Stop");
 									operationSuccessful &= networkTrainer.classifyInput(true);
 								}
-								if (operationSuccessful)
+								if (operationSuccessful & !MNISTnetworkTrainer.shutdown)
 									operationSuccessful &= networkTrainer.stopLearning();
 																				
-								if (!operationSuccessful) {
+								if (!operationSuccessful & !MNISTnetworkTrainer.shutdown) {
 									NodesManager.resetNetwork(thisApp);
 									networkWasTrained = false;									
-									changePanelState(true);									
-								} else {								
+									changeMainPanelState(true);									
+								} else if (!MNISTnetworkTrainer.shutdown) {								
 									networkWasTrained = true;
 									updateLogPanel("Training completed", Color.BLACK);
 								}
 								
-								isTraining = false;
-								trainNetwork.setText("Train");
-								changePanelState(true);
+								if (!MNISTnetworkTrainer.shutdown) {
+									isTraining = false;
+									trainNetwork.setText("Train");
+									changeMainPanelState(true);
+								}
 							}
 						};
 						networkTrainerThread.start();						
@@ -342,7 +360,7 @@ public class MNISTmain {
 				if (!networkWasTrained) {
 					updateLogPanel("Train the network first", Color.RED);
 				} else {
-					changePanelState(false);
+					changeMainPanelState(false);
 					
 					analyzerThread = new Thread() {
 						@Override
@@ -358,7 +376,7 @@ public class MNISTmain {
 							} else {								
 								updateLogPanel("Analysis completed", Color.BLACK);
 							}
-							changePanelState(true);
+							changeMainPanelState(true);
 						}
 					};
 					analyzerThread.start();
@@ -415,6 +433,7 @@ public class MNISTmain {
 							FileInputStream fileInputStream = new FileInputStream(tmpWeightsFile);
 							ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream);
 			        		WeightsFile weightsFile = (WeightsFile)objectInputStream.readObject();
+			        		objectInputStream.close();
 			        		
 			        		// Check that the number of nodes whose weights were stored equals that of 
 			        		// the nodes that constitute the current network. 
@@ -501,14 +520,12 @@ public class MNISTmain {
 							updateLogPanel("Weights update interrupted", Color.RED);
 						}
 						
-						changePanelState(false); 
+						changeMainPanelState(false); 
 						networkTrainerThread = new Thread() {
 							
 							/*
 							 * Just like when the training button is pressed, but the weights are not
 							 * randomized. 
-							 * (non-Javadoc)
-							 * @see java.lang.Thread#run()
 							 */
 							
 							@Override
@@ -532,7 +549,7 @@ public class MNISTmain {
 								
 								isTraining = false;
 								trainNetwork.setText("Train");
-								changePanelState(true);
+								changeMainPanelState(true);
 							}
 						};
 						networkTrainerThread.start();						
@@ -547,8 +564,8 @@ public class MNISTmain {
 		addNodeToExc.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				Node selectedNode = VirtualLayerVisualizer.selectedNode;
-				
+				Node selectedNode = VirtualLayerVisualizer.selectedNode;				
+			
 				if (selectedNode == null) {
 					updateLogPanel("No node selected.", Color.RED); 
 				} else if (NodesManager.excNodes.contains(selectedNode)){
@@ -564,7 +581,8 @@ public class MNISTmain {
 					selectedNode.terminalFrame.refreshSignalRadioButton.setEnabled(false);
 					selectedNode.isExternallyStimulated = true;
 					
-					if (NodesManager.excNodesListModel.contains("No excitatory node")) // The default message should be cleared if a node is added to the list.
+					// The default message should be cleared if a node is added to the list.
+					if (NodesManager.excNodesListModel.contains("No excitatory node")) 
 						NodesManager.excNodesListModel.clear();
 					
 					NodesManager.excNodesListModel.addElement(selectedNode.terminal.ip);
@@ -592,7 +610,8 @@ public class MNISTmain {
 			    	 * Delete the input sender from the list of presynaptic connections.
 			    	 */			        
 			    	
-					// For each node check if it was connected to a socket opened by this app. If so, eliminate the connection and sync the node.
+					// For each node check if it was connected to a socket opened by this app. 
+					// If so, eliminate the connection and sync the node.
 			        for (Node excNode : NodesManager.excNodes) {
 			        	int result = NodesManager.removeAppFromConnections(excNode, thisApp);
 			        	if (result == UtilConst.SUCCESS)
@@ -601,7 +620,8 @@ public class MNISTmain {
 			        
 			        Boolean syncSuccessful = true; 
 			        
-			        // If for some node a connection to the app was found, sync the terminal info on the server with those on the physical device.
+			        // If for some node a connection to the app was found, 
+			        // sync the terminal info on the server with those on the physical device.
 			        if (VirtualLayerManager.unsyncNodes.size() != 0) {
 				        Future<Boolean> future = VirtualLayerManager.syncNodes();	  			        
 						try {
@@ -637,9 +657,7 @@ public class MNISTmain {
 			}			
 		});		
 		
-		/*
-		 * Create the frame. 
-		 */
+		/* Create the frames. */
 		
 		mainFrame.setTitle("MNISTclassifier");
 		mainFrame.setContentPane(mainPanel);
@@ -647,13 +665,20 @@ public class MNISTmain {
 		mainFrame.pack();
 		mainFrame.setAlwaysOnTop(true);
 		mainFrame.setVisible(true);		
+		
+		picturePanel = new PicturePanel(new float[MNISTconst.MAX_PIC_PIXELS], MNISTconst.PIC_SIDE, MNISTconst.PIC_SIDE, 1);
+		
+		pictureFrame.setTitle("Unlabelled pic");
+		pictureFrame.setContentPane(picturePanel);
+		pictureFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		pictureFrame.pack();
+		pictureFrame.setAlwaysOnTop(true);
+		pictureFrame.setVisible(false);
 	}
 	
-	private static void changePanelState(boolean state) {
+	private static void changeMainPanelState(boolean state) {
 		addNodeToExc.setEnabled(state);
-		//addNodeToInh.setEnabled(state);
 		removeNodeFromExc.setEnabled(state);
-		//removeNodeFromInh.setEnabled(state);
 		trainNetwork.setEnabled(state);
 		analyzeSamples.setEnabled(state);
 		loadWeights.setEnabled(state);
@@ -664,9 +689,16 @@ public class MNISTmain {
 		mainPanel.revalidate();
 	}
 	
-	/**
-	 * Show text on the log panel.
-	 */
+	static void updatePictureFrame(float[] pixels, int width, int height, int scale, 
+			String frameTitle) {
+		picturePanel.updatePicturePanel(pixels, width, height, scale);
+		pictureFrame.setSize(picturePanel.getPreferredSize().width, 
+				picturePanel.getPreferredSize().height);
+		if (!pictureFrame.isVisible()) { pictureFrame.setVisible(true); }
+		pictureFrame.setTitle(frameTitle);
+		pictureFrame.repaint();
+		pictureFrame.revalidate();
+	}
 	
 	static void updateLogPanel(String logText, Color color) {
 		logPanel.removeAll();
@@ -678,13 +710,13 @@ public class MNISTmain {
 	}
 	
 	private static int loadDatasets(Integer numOfTrainingImgs, Integer numOfTestImgs) {
-		// Get the files the MNIST dataset pictures and labels
+		// Get the files the MNIST dataset pictures and labels.
 		String absolutePath = new File("").getAbsolutePath();
 		String mnistPath = absolutePath.concat("/resources/MNIST");
 		File mnistDir = new File(mnistPath);
 		File[] mnistFiles = mnistDir.listFiles();
 		
-		// Assign the files to the right references
+		// Assign the files to the right references.
 		File trainingSetImagesFile = null, trainingSetLabelsFile = null, 
 				testSetImagesFile = null, testSetLabelsFile = null;
 		
@@ -731,14 +763,14 @@ public class MNISTmain {
 		return SUCCESS;
 	}
 	
-	private static float[][] readImageFile(File imageFile, Integer numOfImgs) {
-		float[][] result = null;
+	private static ArrayList<float[]> readImageFile(File imageFile, Integer numOfImgs) {
+		ArrayList<float[]> result = null;
 		
 		try {
 			FileInputStream fileInputStream = new FileInputStream(imageFile);
 			byte[] buffer = new byte[4];
 			
-			// Check that the header of the file is correct
+			// Check that the header of the file is correct.
 			fileInputStream.read(buffer);
 			int magicNumber = new BigInteger(buffer).intValue(); 
 			if (magicNumber != IMG_FILE_MN) { 
@@ -762,15 +794,17 @@ public class MNISTmain {
 									
 			buffer = new byte[1];
 			
-			// Read the images and save their pixels in a double array
-			// Images are read row-wise, original bytes are unsigned
+			// Read the images and save their pixels.
 			int imageResolution = numOfRows * numOfColumns; 
-			float[][] images = new float[numOfImages][imageResolution];
-			for (int i = 0; i < numOfImages; i++)
+			ArrayList<float[]> images = new ArrayList<float[]>(numOfImages);
+			for (int i = 0; i < numOfImages; i++) {
+				float image[] = new float[imageResolution];
 				for (int j = 0; j < imageResolution; j++) {
 					fileInputStream.read(buffer);
-					images[i][j] = buffer[0];
+					image[j] = buffer[0] & 0xFF;
 				}
+				images.add(image);
+			}
 			
 			fileInputStream.close();
 			result = images;
@@ -781,14 +815,14 @@ public class MNISTmain {
 		return result;
 	}
 	
-	private static int[] readLabelFile(File labelFile, Integer numOfLabels) {
-		int[] result = null;
+	private static ArrayList<Integer> readLabelFile(File labelFile, Integer numOfLabels) {
+		ArrayList<Integer> result = null;
 		
 		try {
 			FileInputStream fileInputStream = new FileInputStream(labelFile);
 			byte[] buffer = new byte[4];
 			
-			// Check that the header of the file is correct
+			// Check that the header of the file is correct.
 			fileInputStream.read(buffer);
 			int magicNumber = new BigInteger(buffer).intValue(); 
 			if (magicNumber != LBL_FILE_MN) { 
@@ -805,11 +839,11 @@ public class MNISTmain {
 									
 			buffer = new byte[1];
 			
-			// Read the labels
-			int[] labels = new int[numOfItems];
+			// Read the labels.
+			ArrayList<Integer> labels = new ArrayList<>(numOfItems);
 			for (int i = 0; i < numOfItems; i++) {
 				fileInputStream.read(buffer);
-				labels[i] = buffer[0];
+				labels.add(Integer.valueOf((int)buffer[0]));
 			}
 			
 			fileInputStream.close();

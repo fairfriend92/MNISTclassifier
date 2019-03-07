@@ -21,8 +21,12 @@ public class NodesManager {
 			System.out.println("removeAppFromConnections: Node does not belong to the app.");
 			return UtilConst.ERROR;
 		} else {
+			// TODO: This works just fine to delete the single postsynaptic connection but 
+			// since the input terminals used different nat ports they can only be identified using their IPs
 			node.terminal.presynapticTerminals.remove(app);
+			
 			node.terminal.postsynapticTerminals.remove(app);
+			node.terminal.numOfSynapses += node.terminal.numOfNeurons;
 		}
 		
 		return UtilConst.SUCCESS;

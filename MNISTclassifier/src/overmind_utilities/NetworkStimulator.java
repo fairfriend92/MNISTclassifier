@@ -26,41 +26,14 @@ import com.example.overmind.Terminal;
 public class NetworkStimulator {
 	
 	private SpikeInputCreator spikeInputCreator = new SpikeInputCreator();
-	private GrayscaleCandidate noiseCandidate = null;	
-		
+	
 	/*
 	 * When the class is instantiated create an input array from a picture containing
 	 * only noise and no trace. 
 	 */
 	
 	public NetworkStimulator() {
-		/*
-		String path = new File("").getAbsolutePath();
-		path = path.concat("/resources/pics/tagged/noise");
-		File noiseDir = new File(path);
-		ArrayList<File> noiseFiles = new ArrayList<>(Arrays.asList(noiseDir.listFiles()));
 		
-		// Delete unwanted files that may have been included. 
-		Iterator<File> iterator = noiseFiles.iterator();
-		while (iterator.hasNext()) {
-			File file = iterator.next();
-			if (file.getName().equals(".gitignore"))
-				iterator.remove();
-		}
-				
-		if (noiseFiles.size() == 0 | noiseFiles == null) {
-			System.out.println("Noise sample not found");			
-		} else {		
-			// Any of the noise picture is fine, so take the first one in the array. 
-			try {
-				FileInputStream fileInputStream = new FileInputStream(noiseFiles.get(0));
-				ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream); 
-				noiseCandidate = (GrayscaleCandidate) objectInputStream.readObject();
-			} catch (IOException | ClassNotFoundException e) {
-				e.printStackTrace();
-			} 
-		}
-		*/
 	}
 	
 	// Hash map used to store the sockets which send the inputs to the terminals.
@@ -225,12 +198,13 @@ public class NetworkStimulator {
 				}		
 				
 				long timeout = deltaTime - (System.nanoTime() - startingTime) / UtilConst.MILLS_TO_NANO_FACTOR;
-				timeout = timeout > 0 ? timeout : deltaTime;
 				
-				try {
-					Thread.sleep(timeout);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+				if (timeout > 0) {				
+					try {
+						Thread.sleep(timeout);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
 				}
 			}			
 		}

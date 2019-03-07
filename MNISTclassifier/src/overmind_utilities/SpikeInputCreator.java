@@ -1,5 +1,4 @@
 package overmind_utilities;
-import java.util.ArrayList;
 
 /**
  * Class containing methods that pertain to the input made of spikes which is sent
@@ -8,16 +7,11 @@ import java.util.ArrayList;
  *
  */
 
-public class SpikeInputCreator {
-	private static final float MAX_LUMINANCE = 63.75f;		
-	
-	private int maxPicPixels = 0;	
+public class SpikeInputCreator {	
 	
 	/**
-	 * Create a spike input from a map of pixel luminance
-	 */
-	
-	// TODO: Implement refractoriness?
+	 * Create a spike input from a map of pixel luminance.
+	 */	
 	
 	public  byte[] createFromLuminance(float[] grayscalePixels, boolean printValues) {
 		byte[] spikeInput;
@@ -34,40 +28,22 @@ public class SpikeInputCreator {
 		 */
 		
 		spikeInput = new byte[lengthInBytes];
-		double randomLuminance = Math.random(); // Store a random number between 0 and 1				
+		double randomLuminance = Math.random() * 255; // Store a random number between 0 and 255				
 				
-		int index = 0; 
+		int pixelsCounter = 0, totalSpikes = 0;
 		
 		// Iterate over all pixels of the image
 		for (float luminance : grayscalePixels) {
-			int byteIndex = index / 8;
-			
-			/*
-			if (printValues & Main.isTraining)
-				System.out.println("" + luminance);
-			*/
-			
-			// Cut-off luminance to prevent neurons from firing continuously. 
-			//luminance *= MAX_LUMINANCE / 100.0f;
+			luminance = luminance > 0 ? 255 : 0;
+			int byteIndex = pixelsCounter / 8;	
 			
 			// Set the bit corresponding to the current pixel or synapse
 			if (randomLuminance < luminance) {		
-				spikeInput[byteIndex] |= (1 << index - byteIndex * 8);
-				/*
-				if (waitARP[index] == 0) { // A spike can be emitted only after the absolute refractory period has elapsed.
-					spikeInput[byteIndex] |= (1 << index - byteIndex * 8);
-        			waitARP[index] = (int) (Constants.ABSOLUTE_REFRACTORY_PERIOD / Constants.SAMPLING_RATE);  
-				} else if (waitARP[index] > 0) {
-					waitARP[index]--;
-					spikeInput[byteIndex] &= ~(1 << index - byteIndex * 8);
-				} else {
-					spikeInput[byteIndex] &= ~(1 << index - byteIndex * 8);
-				}		
-				*/				
+				spikeInput[byteIndex] |= (1 << pixelsCounter - byteIndex * 8);	
 			}
 			
-			index++;			
-		}		
+			pixelsCounter++;		
+		}
 		
 		return spikeInput;
 	}
