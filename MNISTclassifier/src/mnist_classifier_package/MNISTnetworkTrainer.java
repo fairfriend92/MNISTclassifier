@@ -302,16 +302,13 @@ public class MNISTnetworkTrainer {
 										
 					// Iterate over all the synapses8 coming from any given presynaptic connection.
 					for (int weightIndex = 0; weightIndex < presynapticTerminal.numOfNeurons; weightIndex++) {	
+			
+						float random = 0.0f;
 						
-						//*
-						float random = (float)randomNumber.nextGaussian() * 0.00f + 0.1f;
+						random = (float)randomNumber.nextGaussian() * 0.00f + 0.1f;
+						
 						random = random > MNISTconst.MAX_WEIGHT ? MNISTconst.MAX_WEIGHT : random;
 						random = random < MNISTconst.MIN_WEIGHT ? MNISTconst.MIN_WEIGHT : random;
-						/*/
-												
-						/*
-						float random = randomNumber.nextFloat();
-						 */
 						
 						// Flag that is set if the index of the presynaptic neuron is such that the neuron
 						// could belong to the same population of the postsynaptic one
@@ -410,41 +407,39 @@ public class MNISTnetworkTrainer {
 					assert presynapticTerminal != null;
 	
 					boolean lateralConn = presynapticTerminal.equals(excNode.terminal);
-	
+					boolean rareDigitCase = MNISTmain.rareDigit != null && popIndex == MNISTmain.rareDigit; 
+					
 					// We need to change the weights only of the synapses of the lateral connections					
-					if (lateralConn) {
-								
+					if (lateralConn) {								
 						float probOfConnection = 1;
 						float weightSign = 1;
 						float weight = 1;
 											
 						for (int weightIndex = 0; weightIndex < presynapticTerminal.numOfNeurons; weightIndex++) {	
-							//*
-							float randomExc = (float)randomNumber.nextGaussian() * 0.5f + 0.5f;
+							
+							float randomExc = 0.0f;
+							
+							randomExc = (float)randomNumber.nextGaussian() * 0.0f + 0.0f;
+							
 							randomExc = randomExc > MNISTconst.MAX_WEIGHT ? MNISTconst.MAX_WEIGHT : randomExc;
 							randomExc = randomExc < MNISTconst.MIN_WEIGHT ? MNISTconst.MIN_WEIGHT : randomExc;
 							
-							float randomInh = (float)randomNumber.nextGaussian() * 0.5f + 0.5f;
+							float randomInh = (float)randomNumber.nextGaussian() * 0.0f + 0.0f;
+							
 							randomInh = randomInh > MNISTconst.MAX_WEIGHT ? MNISTconst.MAX_WEIGHT : randomInh;
 							randomInh = randomInh < MNISTconst.MIN_WEIGHT ? MNISTconst.MIN_WEIGHT : randomInh;
-							/*/
-							
-							/*
-							float randomExc = randomNumber.nextFloat(), 
-									randomInh = randomExc;
-							/ */
-														
+																				
 							boolean samePop = weightIndex >= popIndex * pop.numOfNeurons & 
 									weightIndex < pop.numOfNeurons * (1 + popIndex);
 														
 							if (!samePop) { 
 								weightSign = -1; 
-								probOfConnection = 0.0f; 
+								probOfConnection = 1.0f; 
 								weight = randomInh <= probOfConnection ? randomInh : 0.0f;
 							}
 							else { 
 								weightSign = 1; 
-								probOfConnection = 0.0f; 
+								probOfConnection = 1.0f; 
 								weight = randomExc <= probOfConnection ? randomExc : 0.0f;
 							}							
 							
@@ -454,6 +449,23 @@ public class MNISTnetworkTrainer {
 							sparseWeightsIdxs[arrayIdx] = neuronIndex * activeSynPerNeuron + weightIndex + weightOffset;
 							
 							arrayIdx++;
+						}
+					} else if (rareDigitCase) {
+						for (int weightIndex = 0; weightIndex < presynapticTerminal.numOfNeurons; weightIndex++) {
+							/*
+							System.out.println("popIndex " + popIndex + 
+									" neuronIndex " + neuronIndex + 
+									" weightIndex " + weightIndex);
+							
+							float weight = (float)randomNumber.nextGaussian() * 0.0f + 1.0f;
+							weight = weight > MNISTconst.MAX_WEIGHT ? MNISTconst.MAX_WEIGHT : weight;
+							weight = weight < MNISTconst.MIN_WEIGHT ? MNISTconst.MIN_WEIGHT : weight;
+
+							sparseWeights[arrayIdx] = (byte)(weight / UtilConst.MIN_WEIGHT);	
+							sparseWeightsIdxs[arrayIdx] = neuronIndex * activeSynPerNeuron + weightIndex + weightOffset;		
+							
+							arrayIdx++;
+							*/
 						}
 					}
 					
@@ -518,9 +530,12 @@ public class MNISTnetworkTrainer {
     	
     	// Rare digits MNIST related.
     	int falsePositive = 0, falseNegative = 0;
+    	double averageProbability = 0.2f;
+    	boolean isRareDigit = false;
     	
     	float[] dummyInput = new float[MNISTconst.MAX_PIC_PIXELS];
     	Arrays.fill(dummyInput, 0.0f);
+    	    	
     	long postprocessingTime = 0; // Time take to post-process the firing rate vectors collected. 
     	GrayscaleCandidate dummyCandidate = // A Candidate object which contains a picture completely blank.
     			new GrayscaleCandidate(dummyInput, MNISTconst.UNDETERMINED);
@@ -558,7 +573,22 @@ public class MNISTnetworkTrainer {
 	        		
 	        		if (MNISTmain.rareDigit != null && MNISTmain.rareDigit == labelNeeded) {
 	        			labelNeeded++;
+	        			
+	        	    	/* Build input given by the super-imposition of the last 10 images */
+
+	        			int numOfPics = orderedImgs.size() < 10 ? orderedImgs.size() : 10;	        			
+	        			float[] randomInput = new float[MNISTconst.MAX_PIC_PIXELS];
+	        			
+	        			for (int i = 0; i < numOfPics; i++) {
+	        				float[] lastPic = orderedImgs.get(orderedImgs.size() - i - 1);
+	        				
+	        				for (int j = 0; j < MNISTconst.MAX_PIC_PIXELS; j++) {
+	        					randomInput[j] += 2.0f * lastPic[j] / numOfPics;
+	        				}
+	        			}
+	        			
 		    			orderedLbls.add(MNISTmain.rareDigit);		    			
+		    			//orderedImgs.add(randomInput);
 		    			orderedImgs.add(dummyInput);
 	        		}
 	        		
@@ -750,7 +780,12 @@ public class MNISTnetworkTrainer {
     									untaggedFiringRates[nodeIndex][label * populationNeurons + neuron]; 
     						}
     						
+    						// The rate must be a value in [0, 1], therefore divide by the number of neurons of
+    						// the populations. 
+    						populationRates[label] /= populationNeurons;
+    						
     						totalPopulationRate += populationRates[label];
+    						
     						if (populationRates[label] > maxPopulationRate) {
     							maxPopulationRate = populationRates[label];
     							tentativeLabel = label;
@@ -758,6 +793,10 @@ public class MNISTnetworkTrainer {
     					}
     				}   	    	
 
+    				System.out.println("Candidate label " + candidate.label + 
+    						" network activity " + totalPopulationRate);
+    				isRareDigit = totalPopulationRate < 0.1f;
+    				
     				probabilities[tentativeLabel] += populationRates[tentativeLabel] / totalPopulationRate;
     									
     				/*
@@ -782,7 +821,7 @@ public class MNISTnetworkTrainer {
     					if (maxProbability > 0.6f | allowedIterations >= MNISTconst.MAX_ITERATIONS) {
     						sampleClassified = true;
 	    					finalProbability = maxProbability;	
-	    					normalDigitProbability = finalProbability * totalPopulationRate;
+	    					normalDigitProbability = finalProbability;
     					} else {    						
     						allowedIterations += MNISTconst.ITERATION_INCREMENT;
     					}    					
@@ -819,12 +858,18 @@ public class MNISTnetworkTrainer {
 	            	}      
 	            	
 	            	System.out.println("Real class: " + candidate.label + " Tentative class: " + guessedLabel 
-	        				+ " finalProbability " + finalProbability + " Success rate: " + (rightGuess / (i + 1)));
+	        				+ " finalProbability " + finalProbability + " Success rate: " + ((float)rightGuess / (i + 1)));
         		} else 
         		// If the rare digits MNIST is being used:
         		{
-        			// TODO: The probability is not normalized and can be greater than 1.0f;
-        			boolean isRareDigit = normalDigitProbability < 0.05f;
+        			int normalDigits = i - totalGuess;
+        			
+        			// For the first digit, when we still don't have an average, the probability is 
+        			// set to 0.2f.
+        			averageProbability = normalDigits == 0 ? 
+        					0.2f : averageProbability * normalDigits / (normalDigits + 1);
+        			
+        			isRareDigit = normalDigitProbability < averageProbability;        					
         			
         			if (candidate.label == MNISTmain.rareDigit) {
         				totalGuess++;
@@ -832,24 +877,35 @@ public class MNISTnetworkTrainer {
         					System.out.println("Right guess");
         					rightGuess++;
         				} else {
+        					// False negatives contribute to the average with an arbitrary value.
+        					//averageProbability += 0.1f;
         					System.out.println("False negative");
         					falseNegative++;
         				}
         			} else {
         				if (isRareDigit) {
+        					// False positives too contribute with an arbitrary value.
+        					//averageProbability -= 0.1f;
         					System.out.println("False positive");
         					falsePositive++;
+        					averageProbability += normalDigitProbability / (normalDigits + 1);
+        				} 
+        				// When computing the average, we do not account for digit whose probability is
+        				// extremely high, unless the average has become lower than the minimum.
+        				else if (normalDigitProbability < 2.5f * averageProbability | averageProbability < 0.2f) {
+        					averageProbability += normalDigitProbability / (normalDigits + 1);
         				}
         			}
         			
-        			// Until a rare digit appears, accuracy is set to 1.0f to prevent division by zero. 
-        			float accuracy = totalGuess == 0 ? 1.0f : (float) rightGuess / totalGuess;
+        			// Until a rare digit appears, accuracy is set to 0.0f to prevent division by zero. 
+        			float accuracy = totalGuess == 0 ? 0.0f : (float) rightGuess / totalGuess;
         			
         			DecimalFormat decimalFormat = new DecimalFormat("#.00");        			
         			System.out.println("Probability: " + decimalFormat.format(normalDigitProbability) 
         			+ " Accuracy: " + accuracy 
         			+ " False positive: " + ((float)falsePositive / (i + 1)) 
-        			+ " False negative " + ((float)falseNegative / (i + 1)));
+        			+ " False negative " + ((float)falseNegative / (i + 1))
+        			+ " Average prob. " + ((float)averageProbability));
         		}
         	}
         	

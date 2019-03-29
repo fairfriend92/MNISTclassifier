@@ -1,5 +1,7 @@
 package overmind_utilities;
 
+import mnist_classifier_package.MNISTmain;
+
 /**
  * Class containing methods that pertain to the input made of spikes which is sent
  * to the network. 
@@ -34,7 +36,10 @@ public class SpikeInputCreator {
 		
 		// Iterate over all pixels of the image
 		for (float luminance : grayscalePixels) {
-			luminance = luminance > 0 ? 255 : 0;
+			if (MNISTmain.rareDigit == null) {
+				luminance = luminance > 0 ? 255 : 0;
+			}
+
 			int byteIndex = pixelsCounter / 8;	
 			
 			// Set the bit corresponding to the current pixel or synapse

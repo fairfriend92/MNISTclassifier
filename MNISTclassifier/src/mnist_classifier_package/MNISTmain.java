@@ -15,6 +15,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -31,6 +32,7 @@ import javax.swing.JSpinner;
 import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerNumberModel;
 
+import com.example.overmind.Population;
 import com.example.overmind.Terminal;
 
 import overmind_server.*;
@@ -77,7 +79,7 @@ public class MNISTmain {
 	private static Thread networkTrainerThread;
 	private static Thread analyzerThread;
 	
-	static Integer rareDigit = null;
+	public static Integer rareDigit = null;
 	
 	/* Custom classes. */
 	
@@ -270,25 +272,30 @@ public class MNISTmain {
 					thisApp.id = thisApp.customHashCode();
 					
 					inputTerminals = NetworkStimulator.createInputTerminals(MNISTconst.NUM_OF_LABELS, MNISTconst.MAX_PIC_PIXELS);	
-					ArrayList<Node> nodesToUpdate = new ArrayList<Node>();
+					//ArrayList<Node> nodesToUpdate = new ArrayList<Node>();
 					for (Node node : NodesManager.excNodes) {
-						for (Terminal terminal : inputTerminals) {
-							node.terminal.presynapticTerminals.add(terminal);
+						if (node.terminal.numOfDendrites >= MNISTconst.MAX_PIC_PIXELS) {						
+							for (Terminal terminal : inputTerminals) {
+								node.terminal.presynapticTerminals.add(terminal);
+							}
+							
+							// TODO: This solution is not good. The problem is caused by the lack of difference
+							// between the synapses and dendrites of the terminal and those of the population. 
+							node.terminal.numOfDendrites -= MNISTconst.MAX_PIC_PIXELS;
+							
+							// Connect the excNode to the application. 
+							node.terminal.postsynapticTerminals.add(MNISTmain.thisApp);
+							node.terminal.numOfSynapses -= node.terminal.numOfNeurons;
+							
+							// Ordering the presynaptic terminals is important for the mapping between known ports and the information
+							// included in the headers of the UDP packets that happens on the client side
+							Collections.sort(node.terminal.presynapticTerminals, Comparator.reverseOrder());
+												
+							//nodesToUpdate.add(node);
+							automaticPopulationCreation(node);
+						} else {
+							updateLogPanel("Node has not enough input synapses!", Color.RED);
 						}
-						
-						// TODO: This solution is not good. The problem is caused by the lack of difference
-						// between the synapses and dendrites of the terminal and those of the population. 
-						node.terminal.numOfDendrites -= MNISTconst.MAX_PIC_PIXELS;
-						
-						// Connect the excNode to the application. 
-						node.terminal.postsynapticTerminals.add(MNISTmain.thisApp);
-						node.terminal.numOfSynapses -= node.terminal.numOfNeurons;
-						
-						// Ordering the presynaptic terminals is important for the mapping between known ports and the information
-						// included in the headers of the UDP packets that happens on the client side
-						Collections.sort(node.terminal.presynapticTerminals);
-						
-						nodesToUpdate.add(node);
 					}		   
 					
 					updateLogPanel("Terminals created", Color.BLACK);	        	       
@@ -854,4 +861,46 @@ public class MNISTmain {
 		
 		return result;
 	}		
+	
+	/**
+	 * The method creates 10 population of NUM_OF_NEURONS neurons each, 
+	 * and connects them to the presynaptic terminals created by the application
+	 * and the postsynaptic terminals that represent the server and 
+	 * the application itself.
+	 * @param node The node that must be partitioned in populations.
+	 */
+	
+	private static void automaticPopulationCreation(Node node) {
+		final int NUM_OF_NEURONS = 8;
+		
+		Population[] pops = new Population[10];
+		
+		// TODO: For the first time here we intend the number of dendrites/synapses as the number of 
+		// used connections, not the number of available ones. This is different from the rest of the code.		
+		for (int i = 0; i < MNISTconst.NUM_OF_LABELS; i++) {
+			
+			int neededInputSynapses = node.hasLateralConnections() ? 
+					MNISTconst.MAX_PIC_PIXELS + NUM_OF_NEURONS * MNISTconst.NUM_OF_LABELS :
+						MNISTconst.MAX_PIC_PIXELS;
+			
+			// The number of output synapses is equal to the number of neurons as the whole output is sent 
+			// to the server terminal only.									
+			pops[i] = new Population((short)NUM_OF_NEURONS, MNISTconst.MAX_PIC_PIXELS, (short)NUM_OF_NEURONS);
+			pops[i].inputIndexes.add(inputTerminals.get(i).id);
+			
+			if (node.hasLateralConnections()) {
+				pops[i].inputIndexes.add(node.terminal.id);
+			} 
+			
+			// TODO: When multiplexing of the outputs is implemented client-side, the application
+			// terminal should be added too and the number of synapses of the population should be doubled. 
+			pops[i].outputIndexes.add(VirtualLayerManager.thisServer.id);
+			
+			node.terminal.addPopulation(pops[i]);
+						
+		}	
+		
+		VirtualLayerVisualizer.partTool.selectedNode = node;
+		VirtualLayerVisualizer.partTool.buildPopulationsMatrix(node.terminal.populations, node.terminal);
+	}
 }
